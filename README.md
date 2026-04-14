@@ -253,7 +253,7 @@ Au de la les tests obligatoires (unitaires, intégration, API, UI, charge, sécu
   - 20% : `test_integration.py` + Locust → interaction composants
   - 10% : `test_ui.py` → parcours utilisateur E2E
 - **Justification** : Maximise détection de bugs / coûts. Unitaires trouvent 70-80% des bugs ; intégration vérifie communication ; UI valide le comportement réel
-
+### Liens du pipeline : https://github.com/arcanoecole-It1/NexusGame/actions/runs/24405870442/workflow
 ---
 
 ## Investigation de l'API
