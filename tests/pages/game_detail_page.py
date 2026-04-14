@@ -13,7 +13,6 @@ class GameDetailPage:
         self.page = page
 
         # Pour une single-page app, pas de page détail séparée
-        # On peut vérifier l'URL ou un état
 
     def is_detail_view(self) -> bool:
         """Vérifier si on est en vue détail (placeholder pour single-page)."""

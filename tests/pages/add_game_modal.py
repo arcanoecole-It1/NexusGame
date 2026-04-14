@@ -28,7 +28,7 @@ class AddGameModal:
 
     def fill_and_submit(self, title: str, genre: str, price: float,
                         rating: float = None, stock: int = None, year: int = None):
-        # ✅ Attendre que le modal soit ouvert AVANT de fill
+
         self.wait_until_open()
 
         self.input_title.fill(title)

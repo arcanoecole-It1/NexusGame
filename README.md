@@ -257,9 +257,15 @@ Au de la les tests obligatoires (unitaires, intégration, API, UI, charge, sécu
 ---
 
 ## Investigation de l'API
+- featured_games() : Trie par rating ASC au lieu de DESC (commentaire dit "décroissant").
+- _calculate_stats() : count calculé avec len(set(g['genre']...)) qui donne toujours 1 (devrait être len(genre_games)).
+- get_game() : Champ rank défini comme game_id (simple copie de l'ID, pas un vrai rang).
+- create_game() : Stock forcé à 999 pour jeux gratuits sans documentation claire.
+- search_games() : Filtre genre sensible à la casse (lower() manquant côté requête).
+- HTML delete : Vérifie status === 204 mais l'API retourne 200 avec JSON.
+- Bug dans le html à cause de data.error dans la fonction submit
 
-<!-- Ce que vous avez observé en testant l'API.
-     Comportements inattendus, hypothèses, ce que vos tests révèlent. -->
+
 
 ---
 
@@ -271,4 +277,6 @@ Au de la les tests obligatoires (unitaires, intégration, API, UI, charge, sécu
 
 ## Ce que j'ai appris
 
-<!-- Optionnel. -->
+- Erreur sur la recuperation du jeu crée parce que je comparait l'id en string avec un id en nombre
+- test echoué avec playwright lors du filtrage avec la barre de recherche il fallait ajouter la methode filter_name dans homepage
+- j'ai surtout mieux appris à utiliser postman et newman cli pour tester mon code et comprendre aisement les problemes
