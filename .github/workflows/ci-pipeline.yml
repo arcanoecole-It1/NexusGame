@@ -1,0 +1,264 @@
+name: CI Pipeline — NexusGame GameStore
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+
+jobs:
+  # ════════════════════════════════════════════════════════════════════════════════
+  # ÉTAPE 1 : Tests Unitaires
+  # ════════════════════════════════════════════════════════════════════════════════
+  unit-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.9'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Run unit tests
+        run: |
+          pytest tests/test_unit.py -v --html=reports/unit-report.html
+
+      - name: Upload unit test report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: unit-test-report
+          path: reports/unit-report.html
+
+  # ════════════════════════════════════════════════════════════════════════════════
+  # ÉTAPE 2 : Tests d'Intégration (après unitaires ✓)
+  # ════════════════════════════════════════════════════════════════════════════════
+  integration-tests:
+    runs-on: ubuntu-latest
+    needs: unit-tests
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.9'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Start Flask app
+        run: |
+          python app_gamestore.py &
+          sleep 3
+          curl -f http://localhost:5000/health || exit 1
+
+      - name: Run integration tests
+        run: |
+          pytest tests/test_integration.py -v --html=reports/integration-report.html
+
+      - name: Upload integration test report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: integration-test-report
+          path: reports/integration-report.html
+
+  # ════════════════════════════════════════════════════════════════════════════════
+  # ÉTAPE 3 : Tests API (Newman/Postman)
+  # ════════════════════════════════════════════════════════════════════════════════
+  api-tests:
+    runs-on: ubuntu-latest
+    needs: integration-tests
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.9'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Install Newman
+        run: npm install -g newman newman-reporter-htmlextra
+
+      - name: Start Flask app
+        run: |
+          python app_gamestore.py &
+          sleep 3
+          curl -f http://localhost:5000/health || exit 1
+
+      - name: Run Newman API tests
+        run: |
+          mkdir -p reports
+          newman run tests/gamestore_collection.json \
+            -e tests/gamestore_environment.json \
+            -r htmlextra \
+            --reporter-htmlextra-export reports/newman-report.html \
+            --reporter-htmlextra-browserTitle "GameStore API Tests"
+
+      - name: Upload Newman report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: api-test-report
+          path: reports/newman-report.html
+
+  # ════════════════════════════════════════════════════════════════════════════════
+  # ÉTAPE 4 : Tests UI (Playwright)
+  # ════════════════════════════════════════════════════════════════════════════════
+  ui-tests:
+    runs-on: ubuntu-latest
+    needs: api-tests
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.9'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          playwright install chromium
+
+      - name: Start Flask app
+        run: |
+          python app_gamestore.py &
+          sleep 3
+          curl -f http://localhost:5000/health || exit 1
+
+      - name: Run UI tests (Playwright)
+        run: |
+          pytest tests/test_ui.py::TestParcoursUtilisateur -v \
+            --html=reports/ui-report.html \
+            --screenshot on
+
+      - name: Upload UI test report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: ui-test-report
+          path: reports/ui-report.html
+
+      - name: Upload screenshots
+        uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: ui-screenshots
+          path: tests/
+
+  # ════════════════════════════════════════════════════════════════════════════════
+  # ÉTAPE 5 : Tests de Charge (Locust)
+  # ════════════════════════════════════════════════════════════════════════════════
+  load-tests:
+    runs-on: ubuntu-latest
+    needs: ui-tests
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.9'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Start Flask app
+        run: |
+          python app_gamestore.py &
+          sleep 3
+          curl -f http://localhost:5000/health || exit 1
+
+      - name: Run load tests (Locust)
+        run: |
+          mkdir -p reports
+          locust -f tests/locust_gamestore.py \
+            --host=http://localhost:5000 \
+            --users=50 \
+            --spawn-rate=10 \
+            --run-time=60s \
+            --headless \
+            --html=reports/load-test-report.html
+
+      - name: Upload load test report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: load-test-report
+          path: reports/load-test-report.html
+
+  # ════════════════════════════════════════════════════════════════════════════════
+  # ÉTAPE 6 : Scan de Sécurité (OWASP ZAP)
+  # ════════════════════════════════════════════════════════════════════════════════
+  security-scan:
+    runs-on: ubuntu-latest
+    needs: load-tests
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.9'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Start Flask app
+        run: |
+          python app_gamestore.py &
+          sleep 3
+          curl -f http://localhost:5000/health || exit 1
+
+      - name: Run OWASP ZAP Baseline Scan
+        uses: zaproxy/action-baseline@v0.10.0
+        with:
+          target: 'http://localhost:5000'
+          rules_file_name: '.zap/rules.tsv'
+          cmd_options: '-a'
+
+      - name: Upload ZAP report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: security-report
+          path: |
+            report_html.html
+            report_xml.xml
+            report_json.json
+
+  # ════════════════════════════════════════════════════════════════════════════════
+  # RÉSUMÉ : Tous les tests complétés avec succès
+  # ════════════════════════════════════════════════════════════════════════════════
+  all-tests-passed:
+    runs-on: ubuntu-latest
+    needs: [unit-tests, integration-tests, api-tests, ui-tests, load-tests, security-scan]
+    steps:
+      - name: All tests passed ✓
+        run: echo "Pipeline CI complètement vert — prêt pour le rendu !"

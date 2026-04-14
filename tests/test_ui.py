@@ -20,6 +20,7 @@ from playwright.sync_api import Page, expect
 
 from tests.pages.home_page import HomePage
 from tests.pages.add_game_modal import AddGameModal
+from tests.pages.game_detail_page import GameDetailPage
 
 BASE_URL = "http://localhost:5000"
 
@@ -97,6 +98,71 @@ class TestAvecPOM:
         """
         # À compléter
         pass
+
+
+# ════════════════════════════════════════════════════════════════════════════════
+# SECTION 3 — Parcours Utilisateur Critiques (avec POM)
+# ════════════════════════════════════════════════════════════════════════════════
+
+@pytest.mark.ui
+class TestParcoursUtilisateur:
+    """
+    3 parcours complets automatisés avec Page Object Model.
+    Screenshots automatiques en cas d'échec.
+    """
+
+    def test_parcours_navigation(self, page: Page):
+        home = HomePage(page)
+
+        # 1. Ouvrir la page d'accueil
+        home.navigate()
+
+        # 2. Vérifier que la liste s'affiche
+        expect(home.game_list).to_be_visible()
+        expect(home.get_game_cards().first).to_be_visible()  
+
+        # 3. Cliquer sur la première carte
+        home.click_game_card(0)
+
+        # Vérifier qu'on est toujours sur la page d'accueil
+        expect(page).to_have_url(BASE_URL + "/") 
+        expect(home.add_btn).to_be_visible()       
+
+
+    def test_parcours_ajout(self, page: Page):
+        home = HomePage(page)
+        modal = AddGameModal(page)
+
+        home.navigate()
+        home.open_add_form()
+
+        title = f"Test Game {int(time.time())}"
+        modal.fill_and_submit(title, "Action", 29.99, rating=4.5, stock=10)
+
+        page.wait_for_timeout(500)
+        expect(home.game_list).to_contain_text(title)  
+
+
+    def test_parcours_recherche_filtre(self, page: Page):
+        home = HomePage(page)
+
+        home.navigate()
+
+        # Attendre que les jeux soient chargés d'abord
+        page.wait_for_selector('[data-testid="game-card"]', state="visible")
+
+        home.search("Ring")
+        page.wait_for_timeout(500)
+
+        page.wait_for_selector('[data-testid="game-card"]', state="visible", timeout=3000)
+        expect(home.get_game_cards().first).to_be_visible()
+
+        home.filter_name("Ring")
+        page.wait_for_timeout(500)
+
+        cards = home.get_game_cards()
+        for i in range(cards.count()):
+            expect(cards.nth(i)).to_contain_text("Ring")  # Vérifier que chaque carte contient "Ring"
 
     def test_filtre_genre_rpg(self, page: Page):
         """

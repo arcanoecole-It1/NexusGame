@@ -207,7 +207,7 @@ def get_game(game_id):
         return jsonify({'error': f'Jeu {game_id} introuvable'}), 404
     all_ids = [r['id'] for r in db.execute('SELECT id FROM games ORDER BY id ASC').fetchall()]
     game_data = row_to_dict(row)
-    game_data['rank'] = game_id
+    game_data['rank'] = all_ids.index(game_id) + 1 if game_id in all_ids else None
     return jsonify(game_data), 200
 
 
@@ -258,7 +258,7 @@ def delete_game(game_id):
         return jsonify({'error': f'Jeu {game_id} introuvable'}), 404
     db.execute('DELETE FROM games WHERE id = ?', (game_id,))
     db.commit()
-    return jsonify({'deleted': True, 'id': game_id}), 200
+    return '', 204
 
 
 # ── Endpoints de statistiques et recherche ──────────────────────────────────
@@ -274,7 +274,7 @@ def _calculate_stats(games):
         ratings     = [g['rating'] for g in genre_games]
         stocks      = [g['stock']  for g in genre_games]
         stats[genre] = {
-            'count':       len(set(g['genre'] for g in genre_games)),
+            'count':       len(genre_games),
             'avg_price':   round(sum(prices)  / len(prices),  2),
             'avg_rating':  round(sum(ratings) / len(ratings), 2),
             'total_stock': sum(stocks),
@@ -318,16 +318,16 @@ def search_games():
     """Recherche de jeux par titre et/ou genre.
     Paramètres : ?q=zelda  ou  ?genre=RPG  ou  ?q=zelda&genre=RPG
     """
-    q     = request.args.get('q', '').strip()
-    genre = request.args.get('genre', '').strip()
+    q     = request.args.get('q', '').strip().lower()
+    genre = request.args.get('genre', '').strip().lower()
 
     db = get_db()
     all_games = [dict(r) for r in db.execute('SELECT * FROM games').fetchall()]
     results = all_games
     if q:
-        results = [g for g in results if q in g['title']]
+        results = [g for g in results if q in g['title'].lower()]
     if genre:
-        results = [g for g in results if g['genre'].lower() == genre.lower()]
+        results = [g for g in results if genre == g['genre'].lower()]
 
     return jsonify({'count': len(results), 'results': results}), 200
 
@@ -869,7 +869,7 @@ HTML_TEMPLATE = '''<!DOCTYPE html>
       });
       const data = await res.json();
       if (!res.ok) {
-        showToast(data.error || 'Erreur lors de l\'ajout', true);
+        showToast("Erreur lors de l'ajout", true);
         return;
       }
       allGames.unshift(data);
@@ -877,7 +877,7 @@ HTML_TEMPLATE = '''<!DOCTYPE html>
       filterGames();
       showToast(`"${data.title}" ajouté avec succès !`);
     } catch (err) {
-      showToast('Erreur réseau', true);
+      showToast("Erreur lors de l'ajout", true);
     }
   }
 
@@ -888,14 +888,14 @@ HTML_TEMPLATE = '''<!DOCTYPE html>
 
     try {
       const res = await fetch(`/games/${id}`, { method: 'DELETE' });
-      if (res.status === 204 || res.status === 200) {
+      if (res.status === 204) {
         allGames   = allGames.filter(g => g.id !== id);
         card.style.opacity    = '0';
         card.style.transition = 'opacity 0.2s';
         setTimeout(() => { filterGames(); }, 200);
         showToast(`"${title}" supprimé`);
       } else {
-        showToast('Erreur lors de la suppression', true);
+        showToast("Erreur lors de la suppression", true);
       }
     } catch (err) {
       showToast('Erreur réseau', true);
@@ -936,20 +936,9 @@ def index():
 
 
 
-# ── Endpoint featured ────────────────────────────────────────────────────────
+# ── Endpoint featured ─────
 @app.route('/games/featured')
 def featured_games():
-    """
-    Retourne les N jeux mis en avant.
-
-    Comportement attendu :
-    - Triés par rating décroissant (le mieux noté en premier)
-    - Uniquement les jeux en stock (stock > 0)
-    - Uniquement les jeux payants (price > 0)
-    - Paramètre optionnel : ?limit=N (défaut 5, max 10)
-
-    Réponse : {"count": N, "featured": [...]}
-    """
     db    = get_db()
     limit = request.args.get('limit', 5)
     try:
@@ -959,10 +948,12 @@ def featured_games():
     except (ValueError, TypeError):
         limit = 5
 
-    rows  = db.execute('SELECT * FROM games ORDER BY rating ASC').fetchall()
-    games = [dict(r) for r in rows]
-    featured = games[:limit]
+    rows  = db.execute(
+        'SELECT * FROM games WHERE stock > 0 AND price > 0 ORDER BY rating DESC LIMIT ?',
+        (limit,)
+    ).fetchall()
 
+    featured = [dict(r) for r in rows]
     return jsonify({'count': len(featured), 'featured': featured}), 200
 
 # ── Point d'entrée ────────────────────────────────────────────────────────────

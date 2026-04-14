@@ -1,0 +1,6 @@
+# OWASP ZAP Rules Configuration
+# Format: PluginID\tAlertThreshold\tAttackStrength
+# Baseline scan uses default settings, custom rules can be added here
+
+# Example: Disable some rules if needed
+# 10020	IGNORE	LOW	# Example rule ID

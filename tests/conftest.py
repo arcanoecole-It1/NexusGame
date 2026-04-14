@@ -44,6 +44,40 @@ def client(app):
     return app.test_client()
 
 
+# ── Fixtures partagées pour les tests unitaires
+
+@pytest.fixture()
+def sample_game():
+    """Fixture : dictionnaire d'un jeu valide complet."""
+    return {
+        'title': 'Baldur\'s Gate 3',
+        'genre': 'RPG',
+        'price': 59.99,
+        'rating': 4.9,
+        'stock': 150,
+        'publisher': 'Larian Studios',
+        'year': 2023
+    }
+
+
+@pytest.fixture()
+def sample_game_minimal():
+    """Fixture : jeu minimaliste (champs obligatoires seulement)."""
+    return {
+        'title': 'Minimal Game',
+        'genre': 'Action',
+        'price': 19.99
+    }
+
+
+@pytest.fixture()
+def created_game(client, sample_game):
+    """Fixture : crée un jeu en BD et retourne sa réponse complète."""
+    response = client.post('/games', json=sample_game, content_type='application/json')
+    assert response.status_code == 201
+    return response.get_json()
+
+
 # ── Fixtures Playwright ───────────────────────────────────────────────────────
 
 def pytest_configure(config):

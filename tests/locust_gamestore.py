@@ -78,15 +78,17 @@ class GameStoreUser(HttpUser):
 
     @task(1)
     def consulter_featured(self):
-        """
-        TODO — Tester /games/featured avec catch_response=True.
-        Validez le status et le contenu de la réponse.
-        Utilisez response.failure() si quelque chose ne correspond pas
-        à ce que la documentation de l'endpoint promet.
-        """
-        # À compléter
-        self.client.get("/games/featured", name="/games/featured")
-
+        """Tester /games/featured avec validation complète."""
+        with self.client.get("/games/featured", name="/games/featured", catch_response=True) as response:
+            if response.status_code == 200:
+                data = response.json()
+                # Vérifier que la réponse est une liste non vide
+                if not isinstance(data, list):
+                    response.failure("La réponse n'est pas une liste")
+                elif len(data) == 0:
+                    response.failure("Aucun jeu en vedette retourné")
+            else:
+                response.failure(f"Status inattendu : {response.status_code}")
     @task(1)
     def creer_puis_supprimer_jeu(self):
         """Scénario admin : créer un jeu puis le supprimer."""

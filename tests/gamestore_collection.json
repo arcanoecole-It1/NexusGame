@@ -1,7 +1,7 @@
 {
   "info": {
     "name": "NexusGame — GameStore API",
-    "description": "Collection de tests API pour le projet final 2TES3.\nCette collection doit couvrir les scénarios critiques de l'API GameStore\net démontrer le chaînage de requêtes (id récupéré d'une réponse → utilisé dans la suivante).",
+    "description": "Collection de tests API pour le projet final 2TES3. Chaînage d'ID créé vers les requêtes suivantes avec variables de collection.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "variable": [
@@ -13,7 +13,12 @@
     {
       "key": "created_game_id",
       "value": "",
-      "description": "ID du jeu créé — rempli automatiquement par le test de création"
+      "description": "ID du jeu créé — rempli automatiquement par la requête de création"
+    },
+    {
+      "key": "created_game_title",
+      "value": "",
+      "description": "Titre du jeu créé — utilisé pour valider la recherche"
     }
   ],
   "item": [
@@ -28,9 +33,10 @@
           "listen": "test",
           "script": {
             "exec": [
-              "// TODO — Ajouter les assertions Postman :",
-              "// pm.test('Status 200', () => pm.response.to.have.status(200));",
-              "// pm.test('Status ok', () => pm.expect(pm.response.json().status).to.eql('ok'));"
+              "pm.test('Status 200', function () { pm.response.to.have.status(200); });",
+              "var jsonData = pm.response.json();",
+              "pm.test('Status ok', function () { pm.expect(jsonData.status).to.eql('ok'); });",
+              "pm.test('Service GameStore API', function () { pm.expect(jsonData.service).to.eql('GameStore API'); });"
             ]
           }
         }
@@ -47,11 +53,11 @@
           "listen": "test",
           "script": {
             "exec": [
-              "// TODO — Vérifier :",
-              "// - status 200",
-              "// - réponse est un tableau",
-              "// - tableau non vide",
-              "// - chaque jeu contient les champs attendus"
+              "pm.test('Status 200', function () { pm.response.to.have.status(200); });",
+              "var jsonData = pm.response.json();",
+              "pm.test('Réponse est un tableau', function () { pm.expect(jsonData).to.be.an('array'); });",
+              "pm.test('Liste non vide', function () { pm.expect(jsonData.length).to.be.above(0); });",
+              "pm.test('Chaque jeu contient les champs requis', function () { pm.expect(jsonData.every(g => g.id && g.title && g.genre && g.price !== undefined && g.rating !== undefined)).to.be.true; });"
             ]
           }
         }
@@ -78,11 +84,12 @@
           "listen": "test",
           "script": {
             "exec": [
-              "// TODO — Vérifier status 201 et récupérer l'id pour le chaînage :",
-              "// pm.test('Créé', () => pm.response.to.have.status(201));",
-              "// const id = pm.response.json().id;",
-              "// pm.collectionVariables.set('created_game_id', id);",
-              "// pm.test('ID présent', () => pm.expect(id).to.be.a('number'));"
+              "pm.test('Status 201', function () { pm.response.to.have.status(201); });",
+              "var jsonData = pm.response.json();",
+              "pm.test('ID présent', function () { pm.expect(jsonData.id).to.be.a('number'); });",
+              "pm.test('Titre contient NexusGame Test', function () { pm.expect(jsonData.title).to.include('NexusGame Test'); });",
+              "pm.collectionVariables.set('created_game_id', jsonData.id);",
+              "pm.collectionVariables.set('created_game_title', jsonData.title);"
             ]
           }
         }
@@ -99,9 +106,11 @@
           "listen": "test",
           "script": {
             "exec": [
-              "// TODO — Vérifier que le jeu créé à l'étape 3 est bien récupérable.",
-              "// Utiliser created_game_id (chaînage).",
-              "// Vérifier le titre, le genre, le prix."
+              "pm.test('Status 200', function () { pm.response.to.have.status(200); });",
+              "var jsonData = pm.response.json();",
+              "pm.test('ID correspond', function () { pm.expect(jsonData.id.toString()).to.eql(pm.collectionVariables.get('created_game_id').toString()); });",
+              "pm.test('Genre est RPG', function () { pm.expect(jsonData.genre).to.eql('RPG'); });",
+              "pm.test('Prix est 49.99', function () { pm.expect(jsonData.price).to.eql(49.99); });"
             ]
           }
         }
@@ -128,14 +137,133 @@
           "listen": "test",
           "script": {
             "exec": [
-              "// TODO — Vérifier status 200 et que le stock est bien mis à jour."
+              "pm.test('Status 200', function () { pm.response.to.have.status(200); });",
+              "var jsonData = pm.response.json();",
+              "pm.test('Stock mis à jour', function () { pm.expect(jsonData.stock).to.eql(0); });"
             ]
           }
         }
       ]
     },
     {
-      "name": "6. Supprimer le jeu créé",
+      "name": "6. Rechercher le jeu créé",
+      "request": {
+        "method": "GET",
+        "url": "{{base_url}}/games/search?q={{created_game_title}}"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('Status 200', function () { pm.response.to.have.status(200); });",
+              "var jsonData = pm.response.json();",
+              "pm.test('Au moins un résultat', function () { pm.expect(jsonData.count).to.be.at.least(1); });",
+              "pm.test('Résultat contient le titre créé', function () { pm.expect(jsonData.results.some(g => g.title === pm.collectionVariables.get('created_game_title'))).to.be.true; });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "7. Filtrer par genre RPG",
+      "request": {
+        "method": "GET",
+        "url": "{{base_url}}/games?genre=RPG"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('Status 200', function () { pm.response.to.have.status(200); });",
+              "var jsonData = pm.response.json();",
+              "pm.test('Tous les jeux sont RPG', function () { pm.expect(jsonData.every(g => g.genre === 'RPG')).to.be.true; });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "8. Statistiques des jeux",
+      "request": {
+        "method": "GET",
+        "url": "{{base_url}}/games/stats"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('Status 200', function () { pm.response.to.have.status(200); });",
+              "var jsonData = pm.response.json();",
+              "pm.test('total_games présent', function () { pm.expect(jsonData).to.have.property('total_games'); });",
+              "pm.test('genres présent', function () { pm.expect(jsonData).to.have.property('genres'); });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "9. Créer un jeu dupliqué → 409",
+      "request": {
+        "method": "POST",
+        "url": "{{base_url}}/games",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"title\": \"{{created_game_title}}\",\n  \"genre\": \"RPG\",\n  \"price\": 49.99\n}"
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('Status 409', function () { pm.response.to.have.status(409); });",
+              "var jsonData = pm.response.json();",
+              "pm.test('Erreur d\\'unicité', function () { pm.expect(jsonData.error).to.include('existe'); });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "10. Créer un jeu invalide → 400",
+      "request": {
+        "method": "POST",
+        "url": "{{base_url}}/games",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"genre\": \"RPG\"\n}"
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('Status 400', function () { pm.response.to.have.status(400); });",
+              "var jsonData = pm.response.json();",
+              "pm.test('Détails d\\'erreur présents', function () { pm.expect(jsonData).to.have.property('details'); });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "11. Supprimer le jeu créé",
       "request": {
         "method": "DELETE",
         "url": "{{base_url}}/games/{{created_game_id}}"
@@ -145,14 +273,14 @@
           "listen": "test",
           "script": {
             "exec": [
-              "// TODO — Vérifier que la suppression a réussi."
+              "pm.test('Status 204', function () { pm.response.to.have.status(204); });"
             ]
           }
         }
       ]
     },
     {
-      "name": "7. Vérifier suppression (404)",
+      "name": "12. Vérifier suppression (404)",
       "request": {
         "method": "GET",
         "url": "{{base_url}}/games/{{created_game_id}}"
@@ -162,27 +290,25 @@
           "listen": "test",
           "script": {
             "exec": [
-              "// TODO — Vérifier que le jeu n'existe plus (404).",
-              "// C'est la dernière étape du scénario de chaînage complet."
+              "pm.test('Status 404', function () { pm.response.to.have.status(404); });"
             ]
           }
         }
       ]
     },
     {
-      "name": "8. [LIBRE] Scénario de votre choix",
+      "name": "13. Lister les genres disponibles",
       "request": {
         "method": "GET",
-        "url": "{{base_url}}/games"
+        "url": "{{base_url}}/genres"
       },
       "event": [
         {
           "listen": "test",
           "script": {
             "exec": [
-              "// À vous — ajoutez ici un scénario que vous jugez critique.",
-              "// Exemples : filtre par genre, recherche, stats, cas d'erreur...",
-              "// Documentez votre choix dans le README."
+              "pm.test('Status 200', function () { pm.response.to.have.status(200); });",
+              "pm.test('Liste de genres non vide', function () { pm.expect(pm.response.json().length).to.be.above(0); });"
             ]
           }
         }

@@ -1,0 +1,12 @@
+{
+  "id": "gamestore-env",
+  "name": "GameStore Environment",
+  "values": [
+    {
+      "key": "base_url",
+      "value": "http://localhost:5000",
+      "description": "URL de base de l'API GameStore",
+      "enabled": true
+    }
+  ]
+}
